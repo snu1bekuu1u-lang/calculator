@@ -7,6 +7,7 @@ recognition.interimResults = true;
 let isListening = false;
 let currentTranscript = '';
 let isInitialized = false;
+let isProcessing = false;
 
 // Элементы DOM
 const micButton = document.getElementById('micButton');
@@ -28,7 +29,6 @@ const commands = {
     'привет': greet,
     'привет jarvis': greet,
     'здравствуй': greet,
-    'привет помощник': greet,
     'привет помощник': greet,
     'эй jarvis': greet,
 
@@ -108,10 +108,21 @@ function initializeAssistant() {
     showResponse(greetingText);
     speak(greeting);
     
-    // Автоматически начинаем слушать через 3 секунды
+    // Начинаем слушать через 3 секунды
     setTimeout(() => {
+        startListening();
+    }, 3500);
+}
+
+// Функция для начала слушания
+function startListening() {
+    if (isProcessing) return;
+    
+    try {
         recognition.start();
-    }, 3000);
+    } catch (e) {
+        console.log('Recognition already started');
+    }
 }
 
 // Функция переключения прослушивания
@@ -119,7 +130,7 @@ function toggleListening() {
     if (isListening) {
         recognition.stop();
     } else {
-        recognition.start();
+        startListening();
     }
 }
 
@@ -143,25 +154,26 @@ recognition.onresult = (event) => {
         currentTranscript += transcript;
     }
 
-    transcriptElement.innerHTML = `<p>${currentTranscript}</p>`;
+    if (currentTranscript.length > 0) {
+        transcriptElement.innerHTML = `<p>${currentTranscript}</p>`;
+    }
 };
 
 recognition.onend = () => {
     isListening = false;
     micButton.classList.remove('listening');
     statusElement.classList.remove('listening');
-    statusElement.textContent = '✅ Обработка команды...';
     
-    if (currentTranscript) {
+    if (currentTranscript && currentTranscript.length > 0) {
+        statusElement.textContent = '✅ Обработка команды...';
         processCommand(currentTranscript);
     } else {
-        statusElement.textContent = '❌ Команда не распознана';
+        statusElement.textContent = 'Готов к работе';
+        // Автоматически слушаем дальше через 1.5 секунды
         setTimeout(() => {
-            statusElement.textContent = 'Готов к работе';
-            speak('Пожалуйста, повторите команду');
-            setTimeout(() => {
-                recognition.start();
-            }, 1500);
+            if (!isProcessing) {
+                startListening();
+            }
         }, 1500);
     }
 };
@@ -170,18 +182,34 @@ recognition.onerror = (event) => {
     isListening = false;
     micButton.classList.remove('listening');
     statusElement.classList.remove('listening');
-    statusElement.textContent = `❌ Ошибка: ${event.error}`;
-    showResponse(`Ошибка распознавания: ${event.error}`);
-    speak(`Ошибка: ${event.error}`);
     
-    setTimeout(() => {
-        statusElement.textContent = 'Готов к работе';
-        recognition.start();
-    }, 2000);
+    console.log('Recognition error:', event.error);
+    
+    if (event.error === 'no-speech') {
+        statusElement.textContent = 'Ничего не услышал...';
+        // Продолжаем слушать
+        setTimeout(() => {
+            if (!isProcessing) {
+                startListening();
+            }
+        }, 1500);
+    } else {
+        statusElement.textContent = `❌ Ошибка: ${event.error}`;
+        showResponse(`Ошибка: ${event.error}`);
+        speak(`Ошибка распознавания`);
+        
+        setTimeout(() => {
+            statusElement.textContent = 'Готов к работе';
+            if (!isProcessing) {
+                startListening();
+            }
+        }, 2000);
+    }
 };
 
 // Обработка команды
 function processCommand(transcript) {
+    isProcessing = true;
     let executed = false;
 
     // Проверяем точное совпадение
@@ -201,20 +229,16 @@ function processCommand(transcript) {
 
     if (!executed) {
         statusElement.textContent = '❌ Команда не найдена';
-        showResponse(`Команда не распознана: "${transcript}"`);
-        speak(`Я не понял команду: ${transcript}. Пожалуйста, повторите.`);
-        
-        setTimeout(() => {
-            statusElement.textContent = 'Готов к работе';
-            recognition.start();
-        }, 2000);
-    } else {
-        // Продолжаем слушать через 2 секунды
-        setTimeout(() => {
-            statusElement.textContent = 'Готов к работе';
-            recognition.start();
-        }, 2000);
+        showResponse(`Не распознал: "${transcript}"`);
+        speak(`Извините, я не понял эту команду`);
     }
+    
+    // Продолжаем слушать через 2.5 секунды
+    setTimeout(() => {
+        statusElement.textContent = 'Готов к работе';
+        isProcessing = false;
+        startListening();
+    }, 2500);
 }
 
 // Функции команд
@@ -227,7 +251,6 @@ function getTime() {
     const message = `Время: ${time}`;
     showResponse(message);
     speak(`Сейчас ${time}`);
-    statusElement.textContent = '✅ Готово';
 }
 
 function getDate() {
@@ -241,7 +264,6 @@ function getDate() {
     const message = `Дата: ${date}`;
     showResponse(message);
     speak(`Сегодня ${date}`);
-    statusElement.textContent = '✅ Готово';
 }
 
 function greet() {
@@ -249,23 +271,21 @@ function greet() {
     let greeting = '';
     
     if (hour < 12) {
-        greeting = 'Доброе утро! Как дела?';
+        greeting = 'Доброе утро!';
     } else if (hour < 18) {
-        greeting = 'Добрый день! Чем я могу помочь?';
+        greeting = 'Добрый день!';
     } else {
-        greeting = 'Добрый вечер! Как ваши дела?';
+        greeting = 'Добрый вечер!';
     }
     
     showResponse(greeting);
     speak(greeting);
-    statusElement.textContent = '✅ Готово';
 }
 
 function openSite(url, siteName) {
     const message = `Открываю ${siteName}...`;
     showResponse(message);
     speak(`Открываю ${siteName}`);
-    statusElement.textContent = '✅ Готово';
     setTimeout(() => {
         window.open(url, '_blank');
     }, 500);
@@ -275,7 +295,6 @@ function openCalculator() {
     const message = 'Открываю калькулятор...';
     showResponse(message);
     speak('Открываю калькулятор');
-    statusElement.textContent = '✅ Готово';
     setTimeout(() => {
         window.open('index.html', '_blank');
     }, 500);
@@ -285,9 +304,7 @@ function openNotepad() {
     const message = 'Открываю блокнот...';
     showResponse(message);
     speak('Открываю блокнот');
-    statusElement.textContent = '✅ Готово';
     
-    // Открываем простой блокнот
     const notepadWindow = window.open('', 'Блокнот', 'width=600,height=400');
     notepadWindow.document.write(`
         <!DOCTYPE html>
@@ -307,34 +324,30 @@ function openNotepad() {
 }
 
 function search(transcript) {
-    // Извлекаем поисковый запрос
     const query = transcript.replace(/найди|поиск|найди информацию|о /gi, '').trim();
     
     if (query.length > 0) {
         const message = `Ищу: "${query}"...`;
         showResponse(message);
-        speak(`Ищу информацию о ${query}`);
-        statusElement.textContent = '✅ Готово';
+        speak(`Ищу информацию`);
         
         setTimeout(() => {
             const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(query)}`;
             window.open(searchUrl, '_blank');
         }, 500);
     } else {
-        showResponse('Пожалуйста, укажите, что искать');
-        speak('Пожалуйста, укажите, что вы хотите найти');
-        statusElement.textContent = '❌ Ошибка';
+        showResponse('Укажите, что искать');
+        speak('Пожалуйста, уточните поисковый запрос');
     }
 }
 
-// Синтез речи с оптимизацией
+// Синтез речи
 function speak(text) {
-    // Отменяем предыдущую речь
     speechSynthesis.cancel();
     
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = 'ru-RU';
-    utterance.rate = 0.95; // Немного медленнее для четкости
+    utterance.rate = 1;
     utterance.pitch = 1;
     utterance.volume = 1;
     
@@ -349,17 +362,29 @@ function showResponse(text) {
 
 // Очистка дисплея
 function clearDisplay() {
-    transcriptElement.innerHTML = '<p class="placeholder">Нажмите кнопку микрофона и произнесите команду...</p>';
+    speechSynthesis.cancel();
+    recognition.stop();
+    isListening = false;
+    isProcessing = false;
+    
+    transcriptElement.innerHTML = '<p class="placeholder">Слушаю вас...</p>';
     responseElement.innerHTML = '';
     responseElement.classList.remove('active');
     statusElement.textContent = 'Готов к работе';
+    statusElement.classList.remove('listening');
     currentTranscript = '';
+    
+    setTimeout(() => {
+        startListening();
+    }, 500);
 }
 
 // Функция для выполнения команды кнопкой
 function executeCommand(command) {
     transcriptElement.innerHTML = `<p>${command}</p>`;
     statusElement.textContent = '✅ Обработка команды...';
+    isProcessing = true;
+    
     setTimeout(() => {
         processCommand(command);
     }, 300);
