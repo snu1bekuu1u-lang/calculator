@@ -6,6 +6,7 @@ recognition.interimResults = true;
 
 let isListening = false;
 let currentTranscript = '';
+let isInitialized = false;
 
 // Элементы DOM
 const micButton = document.getElementById('micButton');
@@ -28,6 +29,8 @@ const commands = {
     'привет jarvis': greet,
     'здравствуй': greet,
     'привет помощник': greet,
+    'привет помощник': greet,
+    'эй jarvis': greet,
 
     // Сайты
     'открой гугл': () => openSite('https://www.google.com', 'Google'),
@@ -71,6 +74,46 @@ const commands = {
     'найди информацию': search,
 };
 
+// Инициализация при загрузке страницы
+window.addEventListener('load', () => {
+    setTimeout(() => {
+        initializeAssistant();
+    }, 500);
+});
+
+// Инициализация помощника
+function initializeAssistant() {
+    if (isInitialized) return;
+    isInitialized = true;
+    
+    statusElement.textContent = 'Голосовой помощник готов';
+    statusElement.classList.remove('listening');
+    
+    // Приветствие
+    const hour = new Date().getHours();
+    let greeting = '';
+    let greetingText = '';
+    
+    if (hour < 12) {
+        greeting = 'Доброе утро! Я Джарвис. Готов вам помочь.';
+        greetingText = 'Доброе утро';
+    } else if (hour < 18) {
+        greeting = 'Добрый день! Я Джарвис. Чем я могу помочь?';
+        greetingText = 'Добрый день';
+    } else {
+        greeting = 'Добрый вечер! Я Джарвис. Как ваши дела?';
+        greetingText = 'Добрый вечер';
+    }
+    
+    showResponse(greetingText);
+    speak(greeting);
+    
+    // Автоматически начинаем слушать через 3 секунды
+    setTimeout(() => {
+        recognition.start();
+    }, 3000);
+}
+
 // Функция переключения прослушивания
 function toggleListening() {
     if (isListening) {
@@ -84,6 +127,7 @@ function toggleListening() {
 recognition.onstart = () => {
     isListening = true;
     micButton.classList.add('listening');
+    statusElement.classList.add('listening');
     statusElement.textContent = '🎤 Слушаю...';
     transcriptElement.innerHTML = '<p class="placeholder">Говорите...</p>';
     responseElement.innerHTML = '';
@@ -105,20 +149,35 @@ recognition.onresult = (event) => {
 recognition.onend = () => {
     isListening = false;
     micButton.classList.remove('listening');
+    statusElement.classList.remove('listening');
     statusElement.textContent = '✅ Обработка команды...';
     
     if (currentTranscript) {
         processCommand(currentTranscript);
     } else {
         statusElement.textContent = '❌ Команда не распознана';
+        setTimeout(() => {
+            statusElement.textContent = 'Готов к работе';
+            speak('Пожалуйста, повторите команду');
+            setTimeout(() => {
+                recognition.start();
+            }, 1500);
+        }, 1500);
     }
 };
 
 recognition.onerror = (event) => {
     isListening = false;
     micButton.classList.remove('listening');
+    statusElement.classList.remove('listening');
     statusElement.textContent = `❌ Ошибка: ${event.error}`;
     showResponse(`Ошибка распознавания: ${event.error}`);
+    speak(`Ошибка: ${event.error}`);
+    
+    setTimeout(() => {
+        statusElement.textContent = 'Готов к работе';
+        recognition.start();
+    }, 2000);
 };
 
 // Обработка команды
@@ -142,8 +201,19 @@ function processCommand(transcript) {
 
     if (!executed) {
         statusElement.textContent = '❌ Команда не найдена';
-        showResponse(`Команда не распознана: "${transcript}". Попробуйте другую команду.`);
-        speak(`Команда не распознана: ${transcript}`);
+        showResponse(`Команда не распознана: "${transcript}"`);
+        speak(`Я не понял команду: ${transcript}. Пожалуйста, повторите.`);
+        
+        setTimeout(() => {
+            statusElement.textContent = 'Готов к работе';
+            recognition.start();
+        }, 2000);
+    } else {
+        // Продолжаем слушать через 2 секунды
+        setTimeout(() => {
+            statusElement.textContent = 'Готов к работе';
+            recognition.start();
+        }, 2000);
     }
 }
 
@@ -152,10 +222,9 @@ function getTime() {
     const now = new Date();
     const time = now.toLocaleTimeString('ru-RU', { 
         hour: '2-digit', 
-        minute: '2-digit',
-        second: '2-digit'
+        minute: '2-digit'
     });
-    const message = `Текущее время: ${time}`;
+    const message = `Время: ${time}`;
     showResponse(message);
     speak(`Сейчас ${time}`);
     statusElement.textContent = '✅ Готово';
@@ -169,7 +238,7 @@ function getDate() {
         month: 'long',
         day: 'numeric'
     });
-    const message = `Текущая дата: ${date}`;
+    const message = `Дата: ${date}`;
     showResponse(message);
     speak(`Сегодня ${date}`);
     statusElement.textContent = '✅ Готово';
@@ -226,12 +295,12 @@ function openNotepad() {
         <head>
             <title>Блокнот</title>
             <style>
-                body { margin: 0; padding: 10px; font-family: Arial; }
-                textarea { width: 100%; height: 100%; border: 1px solid #ccc; padding: 10px; font-size: 14px; }
+                body { margin: 0; padding: 10px; font-family: Arial; background: #f0f0f0; }
+                textarea { width: 100%; height: calc(100vh - 30px); border: 1px solid #ccc; padding: 10px; font-size: 14px; border-radius: 5px; }
             </style>
         </head>
         <body>
-            <textarea placeholder="Напишите что-нибудь..."></textarea>
+            <textarea placeholder="Напишите что-нибудь..." autofocus></textarea>
         </body>
         </html>
     `);
@@ -242,7 +311,7 @@ function search(transcript) {
     const query = transcript.replace(/найди|поиск|найди информацию|о /gi, '').trim();
     
     if (query.length > 0) {
-        const message = `Ищу информацию о "${query}"...`;
+        const message = `Ищу: "${query}"...`;
         showResponse(message);
         speak(`Ищу информацию о ${query}`);
         statusElement.textContent = '✅ Готово';
@@ -252,18 +321,23 @@ function search(transcript) {
             window.open(searchUrl, '_blank');
         }, 500);
     } else {
-        showResponse('Пожалуйста, укажите, что вы хотите найти');
+        showResponse('Пожалуйста, укажите, что искать');
         speak('Пожалуйста, укажите, что вы хотите найти');
         statusElement.textContent = '❌ Ошибка';
     }
 }
 
-// Синтез речи
+// Синтез речи с оптимизацией
 function speak(text) {
+    // Отменяем предыдущую речь
+    speechSynthesis.cancel();
+    
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = 'ru-RU';
-    utterance.rate = 1;
+    utterance.rate = 0.95; // Немного медленнее для четкости
     utterance.pitch = 1;
+    utterance.volume = 1;
+    
     speechSynthesis.speak(utterance);
 }
 
@@ -290,7 +364,3 @@ function executeCommand(command) {
         processCommand(command);
     }, 300);
 }
-
-// Инициализация
-statusElement.textContent = 'Готов к работе';
-speak('Голосовой помощник JARVIS готов к работе');
