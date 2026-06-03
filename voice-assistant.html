@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Голосовой Помощник JARVIS</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="assistant">
+            <div class="header">
+                <h1>🎤 JARVIS</h1>
+                <p>Голосовой Помощник</p>
+            </div>
+
+            <div class="display-area">
+                <div class="status" id="status">Готов к работе</div>
+                <div class="transcript" id="transcript">
+                    <p class="placeholder">Нажмите кнопку микрофона и произнесите команду...</p>
+                </div>
+                <div class="response" id="response"></div>
+            </div>
+
+            <div class="controls">
+                <button id="micButton" class="mic-button" onclick="toggleListening()">
+                    <span class="mic-icon">🎤</span>
+                    <span class="mic-text">Слушаю</span>
+                </button>
+                <button class="clear-button" onclick="clearDisplay()">Очистить</button>
+            </div>
+
+            <div class="commands-section">
+                <h3>📋 Доступные команды:</h3>
+                <div class="commands-grid">
+                    <div class="command-item">
+                        <strong>Время</strong>
+                        <p>"какое время", "сколько времени"</p>
+                    </div>
+                    <div class="command-item">
+                        <strong>Дата</strong>
+                        <p>"какая дата", "какой день"</p>
+                    </div>
+                    <div class="command-item">
+                        <strong>Открыть сайт</strong>
+                        <p>"открой гугл", "открой ютуб"</p>
+                    </div>
+                    <div class="command-item">
+                        <strong>Поиск</strong>
+                        <p>"найди информацию о..."</p>
+                    </div>
+                    <div class="command-item">
+                        <strong>Калькулятор</strong>
+                        <p>"открой калькулятор"</p>
+                    </div>
+                    <div class="command-item">
+                        <strong>Приветствие</strong>
+                        <p>"привет", "здравствуй"</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="shortcuts">
+                <h3>⌨️ Быстрые команды:</h3>
+                <div class="shortcuts-grid">
+                    <button onclick="executeCommand('время')">Время</button>
+                    <button onclick="executeCommand('дата')">Дата</button>
+                    <button onclick="executeCommand('открой гугл')">Google</button>
+                    <button onclick="executeCommand('открой ютуб')">YouTube</button>
+                    <button onclick="executeCommand('открой калькулятор')">Калькулятор</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
