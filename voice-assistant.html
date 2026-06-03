@@ -4,20 +4,26 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Голосовой Помощник JARVIS</title>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="voice-assistant-style.css">
 </head>
 <body>
     <div class="container">
         <div class="assistant">
             <div class="header">
+                <div class="jarvis-animation">
+                    <div class="wave wave1"></div>
+                    <div class="wave wave2"></div>
+                    <div class="wave wave3"></div>
+                    <div class="wave wave4"></div>
+                </div>
                 <h1>🎤 JARVIS</h1>
                 <p>Голосовой Помощник</p>
             </div>
 
             <div class="display-area">
-                <div class="status" id="status">Готов к работе</div>
+                <div class="status" id="status">Инициализация...</div>
                 <div class="transcript" id="transcript">
-                    <p class="placeholder">Нажмите кнопку микрофона и произнесите команду...</p>
+                    <p class="placeholder">Слушаю вас...</p>
                 </div>
                 <div class="response" id="response"></div>
             </div>
@@ -73,6 +79,6 @@
         </div>
     </div>
 
-    <script src="script.js"></script>
+    <script src="voice-assistant-script.js"></script>
 </body>
 </html>
