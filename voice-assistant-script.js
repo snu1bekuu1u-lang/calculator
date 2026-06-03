@@ -8,6 +8,7 @@ let isListening = false;
 let currentTranscript = '';
 let isInitialized = false;
 let isProcessing = false;
+let listeningTimeout = null;
 
 // Элементы DOM
 const micButton = document.getElementById('micButton');
@@ -67,11 +68,26 @@ const commands = {
 
     'открой блокнот': openNotepad,
     'блокнот': openNotepad,
+    
+    'откроем браузер': () => openSite('', 'Браузер'),
+    'откроем почту': () => openMail(),
+    'откроем карты': () => openSite('https://maps.google.com', 'Карты'),
+    'откроем настройки': openSettings,
+    'откроем файлы': openFileManager,
 
     // Поиск
     'найди': search,
     'поиск': search,
     'найди информацию': search,
+    
+    // Управление
+    'стоп': stopListening,
+    'отключись': stopListening,
+    'пока': () => {
+        showResponse('До свидания!');
+        speak('До свидания!');
+        stopListening();
+    },
 };
 
 // Инициализация при загрузке страницы
@@ -86,7 +102,7 @@ function initializeAssistant() {
     if (isInitialized) return;
     isInitialized = true;
     
-    statusElement.textContent = 'Голосовой помощник готов';
+    statusElement.textContent = 'Микрофон готов';
     statusElement.classList.remove('listening');
     
     // Приветствие
@@ -95,33 +111,62 @@ function initializeAssistant() {
     let greetingText = '';
     
     if (hour < 12) {
-        greeting = 'Доброе утро! Я Джарвис. Готов вам помочь.';
+        greeting = 'Доброе утро! Я Джарвис. Слушаю вас.';
         greetingText = 'Доброе утро';
     } else if (hour < 18) {
-        greeting = 'Добрый день! Я Джарвис. Чем я могу помочь?';
+        greeting = 'Добрый день! Я Джарвис. Что нужно?';
         greetingText = 'Добрый день';
     } else {
-        greeting = 'Добрый вечер! Я Джарвис. Как ваши дела?';
+        greeting = 'Добрый вечер! Я Джарвис. Как дела?';
         greetingText = 'Добрый вечер';
     }
     
     showResponse(greetingText);
     speak(greeting);
     
-    // Начинаем слушать через 3 секунды
+    // Начинаем слушать через 3 секунды, но БЕЗ автоповтора
     setTimeout(() => {
-        startListening();
+        statusElement.textContent = '🎤 Нажмите кнопку или говорите';
+        transcriptElement.innerHTML = '<p class="placeholder">Готов слушать...</p>';
     }, 3500);
+}
+
+// Остановить слушание
+function stopListening() {
+    if (listeningTimeout) {
+        clearTimeout(listeningTimeout);
+    }
+    recognition.stop();
+    isListening = false;
+    isProcessing = false;
+    statusElement.textContent = '⏹️ Остановлен';
+    statusElement.classList.remove('listening');
+    micButton.classList.remove('listening');
 }
 
 // Функция для начала слушания
 function startListening() {
     if (isProcessing) return;
     
+    // Отменяем старый таймаут если есть
+    if (listeningTimeout) {
+        clearTimeout(listeningTimeout);
+    }
+    
     try {
         recognition.start();
+        // Таймаут на случай, если микрофон зависнет (15 секунд)
+        listeningTimeout = setTimeout(() => {
+            if (isListening) {
+                recognition.abort();
+                isListening = false;
+                statusElement.textContent = '⏱️ Время вышло';
+                micButton.classList.remove('listening');
+                statusElement.classList.remove('listening');
+            }
+        }, 15000);
     } catch (e) {
-        console.log('Recognition already started');
+        console.log('Recognition start error:', e);
     }
 }
 
@@ -139,7 +184,7 @@ recognition.onstart = () => {
     isListening = true;
     micButton.classList.add('listening');
     statusElement.classList.add('listening');
-    statusElement.textContent = '🎤 Слушаю...';
+    statusElement.textContent = '🎤 Слушаю вас...';
     transcriptElement.innerHTML = '<p class="placeholder">Говорите...</p>';
     responseElement.innerHTML = '';
     responseElement.classList.remove('active');
@@ -164,17 +209,15 @@ recognition.onend = () => {
     micButton.classList.remove('listening');
     statusElement.classList.remove('listening');
     
+    if (listeningTimeout) {
+        clearTimeout(listeningTimeout);
+    }
+    
     if (currentTranscript && currentTranscript.length > 0) {
-        statusElement.textContent = '✅ Обработка команды...';
+        statusElement.textContent = '✅ Обработка...';
         processCommand(currentTranscript);
     } else {
-        statusElement.textContent = 'Готов к работе';
-        // Автоматически слушаем дальше через 1.5 секунды
-        setTimeout(() => {
-            if (!isProcessing) {
-                startListening();
-            }
-        }, 1500);
+        statusElement.textContent = '🎤 Нажмите кнопку или говорите';
     }
 };
 
@@ -183,27 +226,19 @@ recognition.onerror = (event) => {
     micButton.classList.remove('listening');
     statusElement.classList.remove('listening');
     
+    if (listeningTimeout) {
+        clearTimeout(listeningTimeout);
+    }
+    
     console.log('Recognition error:', event.error);
     
     if (event.error === 'no-speech') {
-        statusElement.textContent = 'Ничего не услышал...';
-        // Продолжаем слушать
-        setTimeout(() => {
-            if (!isProcessing) {
-                startListening();
-            }
-        }, 1500);
+        statusElement.textContent = '🎤 Не услышал...';
+    } else if (event.error === 'audio-capture') {
+        statusElement.textContent = '❌ Нет доступа к микрофону';
+        showResponse('Разрешите доступ к микрофону в браузере');
     } else {
-        statusElement.textContent = `❌ Ошибка: ${event.error}`;
-        showResponse(`Ошибка: ${event.error}`);
-        speak(`Ошибка распознавания`);
-        
-        setTimeout(() => {
-            statusElement.textContent = 'Готов к работе';
-            if (!isProcessing) {
-                startListening();
-            }
-        }, 2000);
+        statusElement.textContent = `❌ ${event.error}`;
     }
 };
 
@@ -228,17 +263,16 @@ function processCommand(transcript) {
     }
 
     if (!executed) {
-        statusElement.textContent = '❌ Команда не найдена';
-        showResponse(`Не распознал: "${transcript}"`);
-        speak(`Извините, я не понял эту команду`);
+        statusElement.textContent = '❌ Не понял';
+        showResponse(`Команда: "${transcript}"`);
+        speak(`Извините, я не понимаю эту команду`);
     }
     
-    // Продолжаем слушать через 2.5 секунды
+    // Возвращаемся в режим ожидания через 2 секунды
     setTimeout(() => {
-        statusElement.textContent = 'Готов к работе';
+        statusElement.textContent = '🎤 Нажмите кнопку или говорите';
         isProcessing = false;
-        startListening();
-    }, 2500);
+    }, 2000);
 }
 
 // Функции команд
@@ -286,9 +320,11 @@ function openSite(url, siteName) {
     const message = `Открываю ${siteName}...`;
     showResponse(message);
     speak(`Открываю ${siteName}`);
-    setTimeout(() => {
-        window.open(url, '_blank');
-    }, 500);
+    if (url) {
+        setTimeout(() => {
+            window.open(url, '_blank');
+        }, 500);
+    }
 }
 
 function openCalculator() {
@@ -323,6 +359,40 @@ function openNotepad() {
     `);
 }
 
+function openMail() {
+    const message = 'Открываю почту...';
+    showResponse(message);
+    speak('Открываю почту');
+    setTimeout(() => {
+        window.open('https://mail.google.com', '_blank');
+    }, 500);
+}
+
+function openSettings() {
+    const message = 'Открываю настройки...';
+    showResponse(message);
+    speak('Открываю системные настройки');
+    setTimeout(() => {
+        // Пытаемся открыть системные настройки
+        if (navigator.platform.includes('Win')) {
+            // Windows
+            alert('Откройте параметры вручную: Win + I');
+        } else if (navigator.platform.includes('Mac')) {
+            // macOS
+            alert('Откройте System Preferences вручную: Cmd + Space, затем System Preferences');
+        }
+    }, 500);
+}
+
+function openFileManager() {
+    const message = 'Открываю файлы...';
+    showResponse(message);
+    speak('Открываю менеджер файлов');
+    setTimeout(() => {
+        alert('Откройте файлы вручную: Win + E (Windows) или Cmd + Space + Finder (Mac)');
+    }, 500);
+}
+
 function search(transcript) {
     const query = transcript.replace(/найди|поиск|найди информацию|о /gi, '').trim();
     
@@ -336,8 +406,8 @@ function search(transcript) {
             window.open(searchUrl, '_blank');
         }, 500);
     } else {
-        showResponse('Укажите, что искать');
-        speak('Пожалуйста, уточните поисковый запрос');
+        showResponse('Что искать?');
+        speak('Уточните поисковый запрос');
     }
 }
 
@@ -367,22 +437,22 @@ function clearDisplay() {
     isListening = false;
     isProcessing = false;
     
-    transcriptElement.innerHTML = '<p class="placeholder">Слушаю вас...</p>';
+    if (listeningTimeout) {
+        clearTimeout(listeningTimeout);
+    }
+    
+    transcriptElement.innerHTML = '<p class="placeholder">Готов слушать...</p>';
     responseElement.innerHTML = '';
     responseElement.classList.remove('active');
-    statusElement.textContent = 'Готов к работе';
+    statusElement.textContent = '🎤 Нажмите кнопку или говорите';
     statusElement.classList.remove('listening');
     currentTranscript = '';
-    
-    setTimeout(() => {
-        startListening();
-    }, 500);
 }
 
 // Функция для выполнения команды кнопкой
 function executeCommand(command) {
     transcriptElement.innerHTML = `<p>${command}</p>`;
-    statusElement.textContent = '✅ Обработка команды...';
+    statusElement.textContent = '✅ Обработка...';
     isProcessing = true;
     
     setTimeout(() => {
